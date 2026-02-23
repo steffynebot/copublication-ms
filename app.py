@@ -17,7 +17,6 @@ st.set_page_config(page_title="Copublications IES Médiation scientifique", layo
 theme = st.get_option("theme.base")  # 'light' ou 'dark'
 is_dark = theme == "dark"
 
-
 # -------------------
 # Helpers robustes
 # -------------------
@@ -72,6 +71,7 @@ def as_int(x, default=0) -> int:
     except Exception:
         return default
 
+
 @st.cache_data(ttl=300)
 def make_wordcloud(text: str, is_dark: bool):
     return WordCloud(
@@ -80,6 +80,8 @@ def make_wordcloud(text: str, is_dark: bool):
         background_color="#004280" if is_dark else "white",
         collocations=False
     ).generate(text)
+
+
 # -------------------
 # Load data
 # -------------------
@@ -127,8 +129,7 @@ def load_data(filepath: str) -> pd.DataFrame:
         "authQuality_s_int": "Fonction_coauteur",
     }
 
-    # ⚠️ Important : ne renommer que si la cible n'existe pas déjà,
-    # sinon on crée des doublons (pyarrow n'aime pas) ou on écrase.
+    # Renommage prudent (évite collisions)
     for src, tgt in mapping.items():
         if src in df.columns and tgt not in df.columns:
             df = df.rename(columns={src: tgt})
@@ -164,10 +165,18 @@ pays_col = "Pays" if "Pays" in df.columns else None
 org_col = "Organisme_copubliant" if "Organisme_copubliant" in df.columns else None
 auteurs_inria_col = "Auteurs_Inria" if "Auteurs_Inria" in df.columns else None
 coauteurs_col = "Coauteurs" if "Coauteurs" in df.columns else None
-resume_col = "Resume" if "Resume" in df.columns else None
+
 type_copub_col = "Type_copublication" if "Type_copublication" in df.columns else None
 func_inria_col = "Fonction_auteur_inria" if "Fonction_auteur_inria" in df.columns else None
 func_coauteur_col = "Fonction_coauteur" if "Fonction_coauteur" in df.columns else None
+
+# Détection robuste de la colonne Résumé
+resume_candidates = ["Resume", "Résumé", "abstract_halinria", "Resume_halinria", "Résumé_halinria"]
+resume_col = next((c for c in resume_candidates if c in df.columns), None)
+if resume_col is None:
+    starts = [c for c in df.columns if str(c).startswith("Resume") or str(c).startswith("Résumé")]
+    if starts:
+        resume_col = starts[0]
 
 missing_core = [x for x in [hal_col, annee_col, centre_col, pays_col, org_col] if x is None]
 if missing_core:
@@ -190,7 +199,6 @@ with st.sidebar:
     st.markdown("### DATALAKE")
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # clés session_state
     for key in [
         "centres", "pays", "organismes", "annees", "equipes",
         "type_copub", "fonctions_inria", "fonctions_coauteur"
@@ -200,7 +208,7 @@ with st.sidebar:
 
     tmp = df.copy()
 
-    # 1) Centres (tous)
+    # 1) Centres
     if centre_col:
         s_centre = safe_series(tmp, centre_col)
         centres_opts = sorted(s_centre.dropna().astype(str).unique()) if s_centre is not None else []
@@ -264,7 +272,7 @@ with st.sidebar:
         if st.session_state.equipes and s_eq is not None:
             tmp = tmp[safe_series(tmp, equipe_col).isin(st.session_state.equipes)]
 
-    # 6) Type copublication (si dispo)
+    # 6) Type copublication
     if type_copub_col:
         s_tc = safe_series(tmp, type_copub_col)
         type_opts = sorted(s_tc.dropna().astype(str).unique()) if s_tc is not None else []
@@ -276,7 +284,7 @@ with st.sidebar:
         if st.session_state.type_copub and s_tc is not None:
             tmp = tmp[safe_series(tmp, type_copub_col).isin(st.session_state.type_copub)]
 
-    # 7) Fonction auteur Inria (si dispo)
+    # 7) Fonction auteur Inria
     if func_inria_col:
         s_fi = safe_series(tmp, func_inria_col)
         finria_opts = sorted(s_fi.dropna().astype(str).unique()) if s_fi is not None else []
@@ -288,7 +296,7 @@ with st.sidebar:
         if st.session_state.fonctions_inria and s_fi is not None:
             tmp = tmp[safe_series(tmp, func_inria_col).isin(st.session_state.fonctions_inria)]
 
-    # 8) Fonction co-auteur (si dispo)
+    # 8) Fonction co-auteur
     if func_coauteur_col:
         s_fc = safe_series(tmp, func_coauteur_col)
         fco_opts = sorted(s_fc.dropna().astype(str).unique()) if s_fc is not None else []
@@ -369,9 +377,6 @@ def compute_top(df_in: pd.DataFrame, col: str, n=10) -> pd.Series:
 
 @st.cache_data(ttl=300)
 def build_graph_centres_pays(df_in: pd.DataFrame, max_edges=2000):
-    """
-    Réseau Centre ↔ Pays (sans villes).
-    """
     if centre_col is None or pays_col is None:
         return None, None
 
@@ -399,11 +404,9 @@ st.title("Copublications IES - Médiation Scientifique")
 # -------------------
 # Tabs
 # -------------------
-tab1, tab2, tab3, tab4 = st.tabs(
-    ["Visualisation générale", "Réseau Centre ↔ Pays", "Carte du monde (Pays)", "Contact"]tab1, tab2, tab3, tab_wc, tab4 = st.tabs(
+tab1, tab2, tab3, tab_wc, tab4 = st.tabs(
     ["Visualisation générale", "Réseau Centre ↔ Pays", "Carte du monde (Pays)", "Wordcloud (Résumé)", "Contact"]
 )
-
 
 # -------------------
 # Onglet 1 : Dashboard
@@ -625,6 +628,7 @@ with tab3:
                 fig_bar = px.bar(top, x="Nb_lignes", y="Pays", orientation="h")
                 fig_bar.update_layout(yaxis=dict(categoryorder="total ascending"))
                 st.plotly_chart(fig_bar, use_container_width=True)
+
 # ----------------------
 # Onglet Wordcloud : Nuage de mots (Résumé)
 # ----------------------
@@ -632,13 +636,11 @@ with tab_wc:
     st.header("Nuage de mots à partir des résumés")
 
     if resume_col is None:
-        st.warning("La colonne 'Resume' est absente dans le fichier. Impossible de générer le wordcloud.")
+        st.warning("Aucune colonne de résumé détectée (Resume/Résumé/...).")
     else:
-        # Contrôles
         max_docs = st.slider("Nombre max de résumés à utiliser", 100, 5000, 1500, step=100)
         min_len = st.slider("Longueur minimale d’un résumé", 20, 500, 60, step=10)
 
-        # On prend des résumés filtrés
         s = safe_series(df_filtered, resume_col)
 
         if s is None:
@@ -650,13 +652,12 @@ with tab_wc:
             if s.empty:
                 st.info("Aucun résumé ne respecte les critères (vides ou trop courts).")
             else:
-                # Limiter volume
                 s = s.head(max_docs)
 
-                # Petit nettoyage simple
                 text = " ".join(
                     s.str.replace(r"\s+", " ", regex=True)
                      .str.replace(r"[\(\)\[\]\{\}\|_]", " ", regex=True)
+                     .tolist()
                 )
 
                 if len(text.strip()) < 50:
@@ -669,7 +670,8 @@ with tab_wc:
                     ax.axis("off")
                     st.pyplot(fig)
 
-                    st.caption("Le nuage de mots est généré à partir de la colonne **Resume** (après filtres).")
+                    st.caption(f"Le nuage de mots est généré à partir de la colonne **{resume_col}** (après filtres).")
+
 # -------------------
 # Onglet 4 : Contact
 # -------------------
