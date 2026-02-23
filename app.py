@@ -7,7 +7,7 @@ import networkx as nx
 # -------------------
 # Page config
 # -------------------
-st.set_page_config(page_title="Copublications Inria", layout="wide")
+st.set_page_config(page_title="Copublications MS_Inria", layout="wide")
 
 # -------------------
 # Détection du thème actuel
