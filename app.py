@@ -3,6 +3,8 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import networkx as nx
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
 
 # -------------------
 # Page config
