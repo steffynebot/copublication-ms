@@ -344,17 +344,11 @@ with st.sidebar:
     "<div style='height:8px'></div>",
     unsafe_allow_html=True
 )
-        st.markdown(
-    "<div style='font-size:18px;font-weight:800;color:#0b2239;margin-top:6px;'>DATALAKE</div>",
-    unsafe_allow_html=True
-)
+   
     except Exception:
         st.caption("Logo manquant")
 
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("### DATALAKE")
-    st.markdown("<br>", unsafe_allow_html=True)
-
+ 
     for key in [
         "centres", "pays", "organismes", "annees", "equipes",
         "type_copub", "fonctions_inria", "fonctions_coauteur"
