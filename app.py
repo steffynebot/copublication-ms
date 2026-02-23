@@ -10,7 +10,144 @@ import matplotlib.pyplot as plt
 # Page config
 # -------------------
 st.set_page_config(page_title="Copublications IES Médiation scientifique", layout="wide")
+st.markdown(
+    """
+    <style>
+      /* =========
+         PALETTE
+         ========= */
+      :root{
+        --dl-sidebar-bg: #dff9fb;   /* ta couleur demandée */
+        --dl-primary: #0484fc;
+        --dl-primary-2: #00a8ff;
+        --dl-accent: #4cada3;
+        --dl-text: #0b2239;
+        --dl-muted: rgba(11,34,57,.65);
+        --dl-card: rgba(255,255,255,.70);
+        --dl-border: rgba(4,132,252,.18);
+        --dl-shadow: 0 12px 30px rgba(4, 132, 252, .18);
+        --dl-radius: 18px;
+      }
 
+      /* =========================
+         SIDEBAR: fond + arrondi + ombre
+         ========================= */
+      section[data-testid="stSidebar"]{
+        background: var(--dl-sidebar-bg);
+        border-right: 1px solid var(--dl-border);
+      }
+
+      /* Container interne sidebar (arrondi + ombre) */
+      section[data-testid="stSidebar"] > div{
+        margin: 14px;
+        border-radius: var(--dl-radius);
+        box-shadow: var(--dl-shadow);
+        background: linear-gradient(180deg, rgba(255,255,255,.65), rgba(255,255,255,.35));
+        border: 1px solid rgba(255,255,255,.55);
+        overflow: hidden;
+      }
+
+      /* Un peu d’air dans la sidebar */
+      section[data-testid="stSidebar"] .stMarkdown,
+      section[data-testid="stSidebar"] .stText,
+      section[data-testid="stSidebar"] label,
+      section[data-testid="stSidebar"] p,
+      section[data-testid="stSidebar"] span{
+        color: var(--dl-text) !important;
+      }
+
+      section[data-testid="stSidebar"] hr{
+        border: none;
+        border-top: 1px solid rgba(11,34,57,.12);
+      }
+
+      /* =========================
+         TITRES / HEADERS
+         ========================= */
+      h1, h2, h3, h4{
+        color: var(--dl-text);
+      }
+
+      /* =========================
+         BOUTONS (st.button)
+         ========================= */
+      div.stButton > button{
+        width: 100%;
+        border-radius: 14px !important;
+        border: 1px solid rgba(4,132,252,.25) !important;
+        background: linear-gradient(135deg, var(--dl-primary), var(--dl-primary-2)) !important;
+        color: white !important;
+        font-weight: 700 !important;
+        padding: .65rem .9rem !important;
+        box-shadow: 0 10px 18px rgba(4,132,252,.22) !important;
+        transition: transform .08s ease-in-out, box-shadow .12s ease-in-out, filter .12s ease-in-out;
+      }
+      div.stButton > button:hover{
+        filter: brightness(1.03);
+        transform: translateY(-1px);
+        box-shadow: 0 14px 28px rgba(4,132,252,.28) !important;
+      }
+      div.stButton > button:active{
+        transform: translateY(0px);
+        box-shadow: 0 8px 16px rgba(4,132,252,.20) !important;
+      }
+
+      /* =========================
+         INPUTS (selectbox/multiselect/slider)
+         ========================= */
+      /* Cadres des widgets */
+      section[data-testid="stSidebar"] div[data-baseweb="select"] > div,
+      section[data-testid="stSidebar"] div[data-baseweb="input"] > div,
+      section[data-testid="stSidebar"] div[data-baseweb="textarea"] > div{
+        border-radius: 14px !important;
+        border: 1px solid rgba(4,132,252,.18) !important;
+        background: rgba(255,255,255,.75) !important;
+        box-shadow: 0 8px 18px rgba(4,132,252,.10);
+      }
+
+      /* Labels */
+      section[data-testid="stSidebar"] label{
+        font-weight: 650 !important;
+        color: var(--dl-text) !important;
+      }
+
+      /* Chips multiselect */
+      section[data-testid="stSidebar"] span[data-baseweb="tag"]{
+        background: rgba(4,132,252,.12) !important;
+        border: 1px solid rgba(4,132,252,.18) !important;
+        color: var(--dl-text) !important;
+        border-radius: 999px !important;
+      }
+
+      /* Slider (barre) */
+      section[data-testid="stSidebar"] div[data-testid="stSlider"] [data-baseweb="slider"] > div{
+        color: var(--dl-primary);
+      }
+
+      /* =========================
+         METRICS (KPI cards)
+         ========================= */
+      div[data-testid="stMetric"]{
+        border-radius: 16px;
+        padding: 12px 14px;
+        border: 1px solid rgba(4,132,252,.14);
+        background: rgba(255,255,255,.65);
+        box-shadow: 0 10px 22px rgba(4,132,252,.10);
+      }
+
+      /* =========================
+         DATAFRAME (table)
+         ========================= */
+      div[data-testid="stDataFrame"]{
+        border-radius: 16px;
+        overflow: hidden;
+        border: 1px solid rgba(4,132,252,.14);
+        box-shadow: 0 14px 28px rgba(4,132,252,.08);
+      }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 # -------------------
 # Détection du thème actuel
 # -------------------
@@ -192,6 +329,7 @@ if missing_core:
 with st.sidebar:
     try:
         st.image("logo.png", use_container_width=True)
+        st.image("datalake_image_IA.png", use_container_width=True)
     except Exception:
         st.caption("Logo manquant")
 
@@ -310,8 +448,7 @@ with st.sidebar:
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.caption(
-        "Proposé par le groupe **DATALAKE** : Kumar Guha, Daniel Da Silva et Andréa Nebot  \n"
-        "à la demande de Luigi Liquori et Maria Kazolea"
+        "Proposé par le groupe **DATALAKE** "
     )
 
 # -------------------
@@ -400,7 +537,19 @@ def build_graph_centres_pays(df_in: pd.DataFrame, max_edges=2000):
 # Titre principal
 # -------------------
 st.title("Copublications IES - Médiation Scientifique")
-
+# -------------------
+# Custom CSS - Sidebar color
+# -------------------
+st.markdown(
+    """
+    <style>
+        section[data-testid="stSidebar"] {
+            background-color: #dff9fb;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 # Tabs
 # -------------------
