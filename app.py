@@ -14,7 +14,20 @@ st.set_page_config(page_title="Copublications Inria", layout="wide")
 # -------------------
 theme = st.get_option("theme.base")  # 'light' ou 'dark'
 is_dark = theme == "dark"
+def safe_series(df: pd.DataFrame, col: str) -> pd.Series | None:
+    """
+    Retourne une Series df[col] même si:
+    - il y a des colonnes en doublon (df[col] => DataFrame)
+    - col n'existe pas
+    """
+    if col is None or col not in df.columns:
+        return None
 
+    x = df[col]
+    if isinstance(x, pd.DataFrame):
+        # colonne dupliquée -> on prend la première
+        x = x.iloc[:, 0]
+    return x
 # -------------------
 # Load data
 # -------------------
@@ -160,16 +173,18 @@ with st.sidebar:
             tmp = tmp[tmp[pays_col].isin(st.session_state.pays)]
 
     # 3) Organismes copubliants
+    
     if org_col:
-        orgs_opts = sorted(tmp[org_col].dropna().unique())
-        st.session_state.organismes = st.multiselect(
-            "Organismes copubliants",
-            orgs_opts,
-            default=[x for x in st.session_state.organismes if x in orgs_opts]
-        )
-        if st.session_state.organismes:
-            tmp = tmp[tmp[org_col].isin(st.session_state.organismes)]
-
+        s_org = safe_series(tmp, org_col)
+        if s_org is not None:
+            orgs_opts = sorted(s_org.dropna().astype(str).unique())
+            st.session_state.organismes = st.multiselect(
+                "Organismes copubliants",
+                orgs_opts,
+                default=[x for x in st.session_state.organismes if x in orgs_opts]
+            )
+            if st.session_state.organismes:
+                tmp = tmp[safe_series(tmp, org_col).isin(st.session_state.organismes)]
     # 4) Années
     if annee_col:
         annees_opts = sorted([int(x) for x in tmp[annee_col].dropna().unique() if pd.notna(x)])
