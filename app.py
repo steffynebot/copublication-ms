@@ -752,11 +752,9 @@ with tab2:
                 )
                 st.plotly_chart(fig_net, use_container_width=True)
 
+
 # ----------------------
-# Onglet 3 : Carte du monde (Pays)
-# ----------------------
-# ----------------------
-# Onglet 3 : Carte du monde (Pays) - Nouvelle API Maplibre
+# Onglet 3 : Carte du monde (Pays) - Choroplèthe (ISO-3)
 # ----------------------
 with tab3:
     st.header("Carte du monde (par pays)")
@@ -764,78 +762,66 @@ with tab3:
     if pays_col is None:
         st.warning("Colonne Pays absente. Carte indisponible.")
     else:
+        # Comptage par pays (nom)
         s_pays = safe_series(df_filtered, pays_col)
 
-        if s_pays is None:
+        if s_pays is None or s_pays.dropna().empty:
             st.info("Aucune donnée pays à afficher.")
         else:
-            # Comptage par pays
-            counts = s_pays.dropna().value_counts().reset_index()
-            counts.columns = ["Pays", "Nb_publications"]
+            counts_name = s_pays.dropna().astype(str).value_counts().reset_index()
+            counts_name.columns = ["Pays", "Nb_publications"]
 
-            # --- CAS 1 : Si Code_Pays ISO-3 disponible ---
+            # Choroplèthe si ISO-3 dispo
             if "Code_Pays" in df_filtered.columns:
+                s_iso = safe_series(df_filtered, "Code_Pays")
 
-                iso_series = safe_series(df_filtered, "Code_Pays")
-
-                if iso_series is not None:
+                if s_iso is not None:
                     iso_counts = (
-                        df_filtered
-                        .dropna(subset=["Code_Pays"])
+                        df_filtered.dropna(subset=["Code_Pays"])
+                        .assign(Code_Pays=lambda x: x["Code_Pays"].astype(str).str.strip().str.upper())
                         .groupby("Code_Pays")
                         .size()
                         .reset_index(name="Nb_publications")
                     )
 
-                    if not iso_counts.empty:
+                    # On garde uniquement les codes qui ressemblent à ISO-3 (3 lettres)
+                    iso_counts = iso_counts[iso_counts["Code_Pays"].str.match(r"^[A-Z]{3}$", na=False)]
 
-                        fig_map = px.scatter_map(
+                    if not iso_counts.empty:
+                        fig_map = px.choropleth(
                             iso_counts,
                             locations="Code_Pays",
                             color="Nb_publications",
-                            size="Nb_publications",
-                            hover_name="Code_Pays",
                             color_continuous_scale=px.colors.sequential.Blues,
-                            zoom=1,
+                            projection="natural earth",
+                            title=None,
                             height=650,
                         )
-
                         fig_map.update_layout(
-                            map_style="carto-positron",
                             margin=dict(l=0, r=0, t=0, b=0),
-                            coloraxis_showscale=True
+                            coloraxis_showscale=True,
                         )
-
                         st.plotly_chart(fig_map, use_container_width=True)
-                        st.caption("Carte basée sur Code_Pays (ISO-3) avec Maplibre.")
+                        st.caption("Carte choroplèthe basée sur Code_Pays (ISO-3).")
                     else:
-                        st.info("Aucun code ISO exploitable trouvé.")
+                        st.info("Colonne Code_Pays présente, mais aucun code ISO-3 valide (ex: FRA, USA, DEU).")
+                        # fallback bar chart
+                        top = counts_name.head(30)
+                        fig_bar = px.bar(top, x="Nb_publications", y="Pays", orientation="h", height=650)
+                        fig_bar.update_layout(yaxis=dict(categoryorder="total ascending"))
+                        st.plotly_chart(fig_bar, use_container_width=True)
                 else:
-                    st.info("Colonne Code_Pays vide ou invalide.")
+                    st.info("Colonne Code_Pays vide/invalide. Affichage TOP pays.")
+                    top = counts_name.head(30)
+                    fig_bar = px.bar(top, x="Nb_publications", y="Pays", orientation="h", height=650)
+                    fig_bar.update_layout(yaxis=dict(categoryorder="total ascending"))
+                    st.plotly_chart(fig_bar, use_container_width=True)
 
-            # --- CAS 2 : Pas de code ISO -> fallback graphique ---
             else:
-                st.info(
-                    "Pas de codes ISO-3 détectés. "
-                    "Affichage du TOP pays en graphique horizontal."
-                )
-
-                top = counts.head(30)
-
-                fig_bar = px.bar(
-                    top,
-                    x="Nb_publications",
-                    y="Pays",
-                    orientation="h",
-                    color="Nb_publications",
-                    color_continuous_scale=px.colors.sequential.Blues,
-                    height=650
-                )
-
-                fig_bar.update_layout(
-                    yaxis=dict(categoryorder="total ascending")
-                )
-
+                st.info("Pas de colonne Code_Pays (ISO-3). Affichage TOP pays.")
+                top = counts_name.head(30)
+                fig_bar = px.bar(top, x="Nb_publications", y="Pays", orientation="h", height=650)
+                fig_bar.update_layout(yaxis=dict(categoryorder="total ascending"))
                 st.plotly_chart(fig_bar, use_container_width=True)
 
 # ----------------------
