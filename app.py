@@ -754,75 +754,77 @@ with tab2:
 
 
 # ----------------------
-# Onglet 3 : Carte du monde (Pays) - Choroplèthe (ISO-3)
+# Onglet 3 : Carte du monde (Pays) - Choroplèthe robuste
 # ----------------------
 with tab3:
     st.header("Carte du monde (par pays)")
 
-    if pays_col is None:
-        st.warning("Colonne Pays absente. Carte indisponible.")
+    # 1) Source principale : Code_Pays si dispo, sinon Pays
+    use_code = "Code_Pays" in df_filtered.columns and safe_series(df_filtered, "Code_Pays") is not None
+
+    if not use_code and pays_col is None:
+        st.warning("Aucune colonne Pays/Code_Pays détectée. Carte indisponible.")
     else:
-        # Comptage par pays (nom)
-        s_pays = safe_series(df_filtered, pays_col)
-
-        if s_pays is None or s_pays.dropna().empty:
-            st.info("Aucune donnée pays à afficher.")
+        if use_code:
+            s_loc = safe_series(df_filtered, "Code_Pays").dropna().astype(str).str.strip().str.upper()
+            loc_label = "Code_Pays"
         else:
-            counts_name = s_pays.dropna().astype(str).value_counts().reset_index()
-            counts_name.columns = ["Pays", "Nb_publications"]
+            s_loc = safe_series(df_filtered, pays_col).dropna().astype(str).str.strip()
+            loc_label = "Pays"
 
-            # Choroplèthe si ISO-3 dispo
-            if "Code_Pays" in df_filtered.columns:
-                s_iso = safe_series(df_filtered, "Code_Pays")
+        if s_loc.empty:
+            st.info("Aucune donnée de pays exploitable.")
+        else:
+            counts = s_loc.value_counts().reset_index()
+            counts.columns = [loc_label, "Nb_publications"]
 
-                if s_iso is not None:
-                    iso_counts = (
-                        df_filtered.dropna(subset=["Code_Pays"])
-                        .assign(Code_Pays=lambda x: x["Code_Pays"].astype(str).str.strip().str.upper())
-                        .groupby("Code_Pays")
-                        .size()
-                        .reset_index(name="Nb_publications")
+            # Tentative 1 : ISO-3 (si codes longueur 3 majoritaires)
+            len_counts = s_loc.str.len().value_counts()
+            iso3_major = (len_counts.get(3, 0) >= len_counts.max() * 0.6)  # heuristique
+
+            rendered = False
+
+            if iso3_major:
+                # garder seulement les ISO-3 valides "AAA"
+                df_iso = counts[counts[loc_label].str.match(r"^[A-Z]{3}$", na=False)].copy()
+                if not df_iso.empty:
+                    fig = px.choropleth(
+                        df_iso,
+                        locations=loc_label,
+                        locationmode="ISO-3",
+                        color="Nb_publications",
+                        color_continuous_scale=px.colors.sequential.Blues,
+                        projection="natural earth",
+                        height=650,
                     )
+                    fig.update_geos(showframe=False, showcoastlines=True)
+                    fig.update_layout(margin=dict(l=0, r=0, t=0, b=0))
+                    st.plotly_chart(fig, use_container_width=True)
+                    st.caption("Carte choroplèthe basée sur des codes ISO-3.")
+                    rendered = True
 
-                    # On garde uniquement les codes qui ressemblent à ISO-3 (3 lettres)
-                    iso_counts = iso_counts[iso_counts["Code_Pays"].str.match(r"^[A-Z]{3}$", na=False)]
+            # Tentative 2 : noms de pays (fonctionne si noms reconnus par Plotly, souvent en anglais)
+            if not rendered:
+                fig = px.choropleth(
+                    counts,
+                    locations=loc_label,
+                    locationmode="country names",
+                    color="Nb_publications",
+                    color_continuous_scale=px.colors.sequential.Blues,
+                    projection="natural earth",
+                    height=650,
+                )
+                fig.update_geos(showframe=False, showcoastlines=True)
+                fig.update_layout(margin=dict(l=0, r=0, t=0, b=0))
 
-                    if not iso_counts.empty:
-                        fig_map = px.choropleth(
-                            iso_counts,
-                            locations="Code_Pays",
-                            color="Nb_publications",
-                            color_continuous_scale=px.colors.sequential.Blues,
-                            projection="natural earth",
-                            title=None,
-                            height=650,
-                        )
-                        fig_map.update_layout(
-                            margin=dict(l=0, r=0, t=0, b=0),
-                            coloraxis_showscale=True,
-                        )
-                        st.plotly_chart(fig_map, use_container_width=True)
-                        st.caption("Carte choroplèthe basée sur Code_Pays (ISO-3).")
-                    else:
-                        st.info("Colonne Code_Pays présente, mais aucun code ISO-3 valide (ex: FRA, USA, DEU).")
-                        # fallback bar chart
-                        top = counts_name.head(30)
-                        fig_bar = px.bar(top, x="Nb_publications", y="Pays", orientation="h", height=650)
-                        fig_bar.update_layout(yaxis=dict(categoryorder="total ascending"))
-                        st.plotly_chart(fig_bar, use_container_width=True)
-                else:
-                    st.info("Colonne Code_Pays vide/invalide. Affichage TOP pays.")
-                    top = counts_name.head(30)
-                    fig_bar = px.bar(top, x="Nb_publications", y="Pays", orientation="h", height=650)
-                    fig_bar.update_layout(yaxis=dict(categoryorder="total ascending"))
-                    st.plotly_chart(fig_bar, use_container_width=True)
-
-            else:
-                st.info("Pas de colonne Code_Pays (ISO-3). Affichage TOP pays.")
-                top = counts_name.head(30)
-                fig_bar = px.bar(top, x="Nb_publications", y="Pays", orientation="h", height=650)
-                fig_bar.update_layout(yaxis=dict(categoryorder="total ascending"))
-                st.plotly_chart(fig_bar, use_container_width=True)
+                # Si Plotly ne reconnaît rien, la carte est quasi vide.
+                # On affiche quand même, mais on ajoute un message utile.
+                st.plotly_chart(fig, use_container_width=True)
+                st.caption(
+                    "Carte choroplèthe basée sur les noms de pays. "
+                    "Si la carte semble vide, c’est souvent parce que les noms ne sont pas en anglais ou non reconnus."
+                )
+                rendered = True
 
 # ----------------------
 # Onglet Wordcloud : Nuage de mots (Résumé)
