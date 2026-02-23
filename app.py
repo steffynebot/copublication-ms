@@ -72,7 +72,14 @@ def as_int(x, default=0) -> int:
     except Exception:
         return default
 
-
+@st.cache_data(ttl=300)
+def make_wordcloud(text: str, is_dark: bool):
+    return WordCloud(
+        width=1200,
+        height=600,
+        background_color="#004280" if is_dark else "white",
+        collocations=False
+    ).generate(text)
 # -------------------
 # Load data
 # -------------------
