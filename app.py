@@ -401,13 +401,19 @@ def build_graph_centres_pays(df_in: pd.DataFrame, max_edges=2000):
 # -------------------
 st.title("Copublications IES - Médiation Scientifique")
 
-# -------------------
+
 # Tabs
 # -------------------
 tab1, tab2, tab3, tab_wc, tab4 = st.tabs(
-    ["Visualisation générale", "Réseau Centre ↔ Pays", "Carte du monde (Pays)", "Wordcloud (Résumé)", "Contact"]
+    [
+        "Visualisation générale",
+        "Réseau Centre ↔ Pays",
+        "Carte du monde (Pays)",
+        "Wordcloud (Résumé)",
+        "Contact",
+    ]
 )
-
+st.write("DEBUG: tabs OK ✅")
 # -------------------
 # Onglet 1 : Dashboard
 # -------------------
