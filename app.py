@@ -761,6 +761,9 @@ with tab2:
 # ----------------------
 # Onglet 3 : Carte du monde (Pays)
 # ----------------------
+# ----------------------
+# Onglet 3 : Carte du monde (Pays) - Nouvelle API Maplibre
+# ----------------------
 with tab3:
     st.header("Carte du monde (par pays)")
 
@@ -768,38 +771,77 @@ with tab3:
         st.warning("Colonne Pays absente. Carte indisponible.")
     else:
         s_pays = safe_series(df_filtered, pays_col)
+
         if s_pays is None:
             st.info("Aucune donnée pays à afficher.")
         else:
+            # Comptage par pays
             counts = s_pays.dropna().value_counts().reset_index()
-            counts.columns = ["Pays", "Nb_lignes"]
+            counts.columns = ["Pays", "Nb_publications"]
 
-            use_iso = ("Code_Pays" in df_filtered.columns) and df_filtered["Code_Pays"].astype(str).str.len().dropna().isin([3]).any()
+            # --- CAS 1 : Si Code_Pays ISO-3 disponible ---
+            if "Code_Pays" in df_filtered.columns:
 
-            if use_iso:
-                iso_counts = df_filtered.dropna(subset=["Code_Pays"]).groupby("Code_Pays").size().reset_index(name="Nb_lignes")
-                fig_map = px.choropleth(
-                    iso_counts,
-                    locations="Code_Pays",
-                    color="Nb_lignes",
-                    hover_name="Code_Pays",
-                    color_continuous_scale=px.colors.sequential.Blues,
-                )
-                fig_map.update_layout(
-                    geo=dict(showframe=False, showcoastlines=True),
-                    margin=dict(l=0, r=0, t=0, b=0)
-                )
-                st.plotly_chart(fig_map, use_container_width=True)
-                st.caption("Carte basée sur Code_Pays (si ISO-3).")
+                iso_series = safe_series(df_filtered, "Code_Pays")
+
+                if iso_series is not None:
+                    iso_counts = (
+                        df_filtered
+                        .dropna(subset=["Code_Pays"])
+                        .groupby("Code_Pays")
+                        .size()
+                        .reset_index(name="Nb_publications")
+                    )
+
+                    if not iso_counts.empty:
+
+                        fig_map = px.scatter_map(
+                            iso_counts,
+                            locations="Code_Pays",
+                            color="Nb_publications",
+                            size="Nb_publications",
+                            hover_name="Code_Pays",
+                            color_continuous_scale=px.colors.sequential.Blues,
+                            zoom=1,
+                            height=650,
+                        )
+
+                        fig_map.update_layout(
+                            map_style="carto-positron",
+                            margin=dict(l=0, r=0, t=0, b=0),
+                            coloraxis_showscale=True
+                        )
+
+                        st.plotly_chart(fig_map, use_container_width=True)
+                        st.caption("Carte basée sur Code_Pays (ISO-3) avec Maplibre.")
+                    else:
+                        st.info("Aucun code ISO exploitable trouvé.")
+                else:
+                    st.info("Colonne Code_Pays vide ou invalide.")
+
+            # --- CAS 2 : Pas de code ISO -> fallback graphique ---
             else:
                 st.info(
-                    "Je n'ai pas détecté de codes ISO-3 fiables. "
-                    "J'affiche plutôt un TOP pays (bar chart). "
-                    "Si tu ajoutes une colonne ISO-3 (ex: FRA/USA/DEU), la choroplèthe s’activera."
+                    "Pas de codes ISO-3 détectés. "
+                    "Affichage du TOP pays en graphique horizontal."
                 )
+
                 top = counts.head(30)
-                fig_bar = px.bar(top, x="Nb_lignes", y="Pays", orientation="h")
-                fig_bar.update_layout(yaxis=dict(categoryorder="total ascending"))
+
+                fig_bar = px.bar(
+                    top,
+                    x="Nb_publications",
+                    y="Pays",
+                    orientation="h",
+                    color="Nb_publications",
+                    color_continuous_scale=px.colors.sequential.Blues,
+                    height=650
+                )
+
+                fig_bar.update_layout(
+                    yaxis=dict(categoryorder="total ascending")
+                )
+
                 st.plotly_chart(fig_bar, use_container_width=True)
 
 # ----------------------
