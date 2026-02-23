@@ -164,7 +164,7 @@ pays_col = "Pays" if "Pays" in df.columns else None
 org_col = "Organisme_copubliant" if "Organisme_copubliant" in df.columns else None
 auteurs_inria_col = "Auteurs_Inria" if "Auteurs_Inria" in df.columns else None
 coauteurs_col = "Coauteurs" if "Coauteurs" in df.columns else None
-
+resume_col = "Resume" if "Resume" in df.columns else None
 type_copub_col = "Type_copublication" if "Type_copublication" in df.columns else None
 func_inria_col = "Fonction_auteur_inria" if "Fonction_auteur_inria" in df.columns else None
 func_coauteur_col = "Fonction_coauteur" if "Fonction_coauteur" in df.columns else None
@@ -394,14 +394,16 @@ def build_graph_centres_pays(df_in: pd.DataFrame, max_edges=2000):
 # -------------------
 # Titre principal
 # -------------------
-st.title("Copublications d'auteurs Inria")
+st.title("Copublications IES - Médiation Scientifique")
 
 # -------------------
 # Tabs
 # -------------------
 tab1, tab2, tab3, tab4 = st.tabs(
-    ["Visualisation générale", "Réseau Centre ↔ Pays", "Carte du monde (Pays)", "Contact"]
+    ["Visualisation générale", "Réseau Centre ↔ Pays", "Carte du monde (Pays)", "Contact"]tab1, tab2, tab3, tab_wc, tab4 = st.tabs(
+    ["Visualisation générale", "Réseau Centre ↔ Pays", "Carte du monde (Pays)", "Wordcloud (Résumé)", "Contact"]
 )
+
 
 # -------------------
 # Onglet 1 : Dashboard
@@ -623,7 +625,51 @@ with tab3:
                 fig_bar = px.bar(top, x="Nb_lignes", y="Pays", orientation="h")
                 fig_bar.update_layout(yaxis=dict(categoryorder="total ascending"))
                 st.plotly_chart(fig_bar, use_container_width=True)
+# ----------------------
+# Onglet Wordcloud : Nuage de mots (Résumé)
+# ----------------------
+with tab_wc:
+    st.header("Nuage de mots à partir des résumés")
 
+    if resume_col is None:
+        st.warning("La colonne 'Resume' est absente dans le fichier. Impossible de générer le wordcloud.")
+    else:
+        # Contrôles
+        max_docs = st.slider("Nombre max de résumés à utiliser", 100, 5000, 1500, step=100)
+        min_len = st.slider("Longueur minimale d’un résumé", 20, 500, 60, step=10)
+
+        # On prend des résumés filtrés
+        s = safe_series(df_filtered, resume_col)
+
+        if s is None:
+            st.info("Aucun résumé disponible.")
+        else:
+            s = s.dropna().astype(str)
+            s = s[s.str.len() >= min_len]
+
+            if s.empty:
+                st.info("Aucun résumé ne respecte les critères (vides ou trop courts).")
+            else:
+                # Limiter volume
+                s = s.head(max_docs)
+
+                # Petit nettoyage simple
+                text = " ".join(
+                    s.str.replace(r"\s+", " ", regex=True)
+                     .str.replace(r"[\(\)\[\]\{\}\|_]", " ", regex=True)
+                )
+
+                if len(text.strip()) < 50:
+                    st.info("Pas assez de texte après nettoyage pour générer un nuage de mots.")
+                else:
+                    wc = make_wordcloud(text, is_dark)
+
+                    fig, ax = plt.subplots(figsize=(14, 7))
+                    ax.imshow(wc, interpolation="bilinear")
+                    ax.axis("off")
+                    st.pyplot(fig)
+
+                    st.caption("Le nuage de mots est généré à partir de la colonne **Resume** (après filtres).")
 # -------------------
 # Onglet 4 : Contact
 # -------------------
