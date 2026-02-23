@@ -330,6 +330,10 @@ with st.sidebar:
     try:
         st.image("logo.png", use_container_width=True)
         st.image("datalake_image_IA.png", use_container_width=True)
+        st.markdown(
+    "<div style='height:8px'></div>",
+    unsafe_allow_html=True
+)
     except Exception:
         st.caption("Logo manquant")
 
