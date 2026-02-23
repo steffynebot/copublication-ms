@@ -16,6 +16,9 @@ theme = st.get_option("theme.base")  # 'light' ou 'dark'
 is_dark = theme == "dark"
 
 
+# -------------------
+# Helpers robustes
+# -------------------
 def safe_series(df: pd.DataFrame, col: str) -> pd.Series | None:
     """
     Retourne une Series df[col] même si:
@@ -27,9 +30,26 @@ def safe_series(df: pd.DataFrame, col: str) -> pd.Series | None:
 
     x = df[col]
     if isinstance(x, pd.DataFrame):
-        # colonne dupliquée -> on prend la première
         x = x.iloc[:, 0]
     return x
+
+
+def make_unique_columns(cols) -> list[str]:
+    """
+    Rend les noms de colonnes uniques en ajoutant _2, _3, ... si nécessaire.
+    Indispensable pour éviter l'erreur pyarrow/streamlit "Duplicate column names found".
+    """
+    seen = {}
+    new_cols = []
+    for c in cols:
+        c = str(c)
+        if c not in seen:
+            seen[c] = 1
+            new_cols.append(c)
+        else:
+            seen[c] += 1
+            new_cols.append(f"{c}_{seen[c]}")
+    return new_cols
 
 
 def as_int(x, default=0) -> int:
@@ -41,7 +61,6 @@ def as_int(x, default=0) -> int:
         if x is None:
             return default
         if isinstance(x, pd.Series):
-            # KPI -> on somme (ou tu peux faire .iloc[0] selon ton besoin)
             x = x.sum()
         if isinstance(x, pd.DataFrame):
             x = x.to_numpy().sum()
@@ -59,28 +78,22 @@ def as_int(x, default=0) -> int:
 def load_data(filepath: str) -> pd.DataFrame:
     df = pd.read_excel(filepath)
 
-    # nettoyage de noms de colonnes
+    # Nettoyage de noms de colonnes
     df.columns = [str(c).strip().replace("\xa0", "").replace(" ", "_") for c in df.columns]
-
-    # ✅ IMPORTANT: supprimer les colonnes en doublon (sinon df[col] peut être un DataFrame)
-    df = df.loc[:, ~df.columns.duplicated()]
+    df.columns = make_unique_columns(df.columns)  # ✅ unique après nettoyage
 
     # Harmonisation vers des colonnes "dashboard" stables
     mapping = {
         # Identifiants / année
         "Hal_ID": "HalID",
-        "HalID": "HalID",
         "Annee": "Année",
-        "Année": "Année",
         "year_halinria": "Année",
         "year": "Année",
 
         # Centres / équipes
         "Centre_inria": "Centre",
-        "Centre": "Centre",
         "Centre_halinria": "Centre",
         "Equipe_inria": "Equipe",
-        "Equipe": "Equipe",
         "acronym_halinria": "Equipe",
 
         # Auteurs
@@ -95,30 +108,29 @@ def load_data(filepath: str) -> pd.DataFrame:
         # Organisations / pays
         "Nom_org_copubliant": "Organisme_copubliant",
         "Nom_org_Top_copubliant": "Organisme_copubliant",
-        "Organisme_copubliant": "Organisme_copubliant",
         "Nom_Pays_org_copubliant": "Pays",
-        "Pays": "Pays",
         "Code_Pays_orgs_copubliant": "Code_Pays",
 
         # Nouvelles colonnes
-        "Type_copublication": "Type_copublication",
         "Copub_scope_int": "Type_copublication",
         "Copub_scope": "Type_copublication",
-        "Fonction_auteur_inria": "Fonction_auteur_inria",
         "authQuality_s_halinria": "Fonction_auteur_inria",
-        "Fonction_coauteur": "Fonction_coauteur",
         "authQuality_s_int": "Fonction_coauteur",
     }
 
+    # ⚠️ Important : ne renommer que si la cible n'existe pas déjà,
+    # sinon on crée des doublons (pyarrow n'aime pas) ou on écrase.
     for src, tgt in mapping.items():
-        if src in df.columns:
+        if src in df.columns and tgt not in df.columns:
             df = df.rename(columns={src: tgt})
+
+    # ✅ unique après renommages (évite collisions)
+    df.columns = make_unique_columns(df.columns)
 
     # Normalisations utiles
     if "Année" in df.columns:
         df["Année"] = pd.to_numeric(df["Année"], errors="coerce")
 
-    # si Pays manquant mais Code_Pays présent, on garde au moins le code
     if "Pays" not in df.columns and "Code_Pays" in df.columns:
         df["Pays"] = df["Code_Pays"]
 
@@ -320,6 +332,10 @@ def get_filtered_df() -> pd.DataFrame:
 
 df_filtered = get_filtered_df()
 
+# ✅ Streamlit/pyarrow refuse les colonnes dupliquées -> on sécurise l'affichage
+df_view = df_filtered.copy()
+df_view.columns = make_unique_columns(df_view.columns)
+
 # -------------------
 # Fonctions utiles
 # -------------------
@@ -387,7 +403,6 @@ with tab1:
     pubs_year = compute_yearly(df_filtered)
     total_pubs = as_int(pubs_year["Publications"].sum()) if not pubs_year.empty else 0
 
-    # ✅ utiliser safe_series + as_int pour éviter Series -> int()
     total_centres = as_int(safe_series(df_filtered, centre_col).nunique()) if centre_col else 0
     total_pays = as_int(safe_series(df_filtered, pays_col).nunique()) if pays_col else 0
     total_orgs = as_int(safe_series(df_filtered, org_col).nunique()) if org_col else 0
@@ -489,7 +504,7 @@ with tab1:
 
     st.markdown("---")
     st.subheader("Aperçu des données filtrées")
-    st.dataframe(df_filtered, use_container_width=True)
+    st.dataframe(df_view, use_container_width=True)
 
 # -------------------
 # Onglet 2 : Réseau Centre ↔ Pays
@@ -565,36 +580,40 @@ with tab3:
     if pays_col is None:
         st.warning("Colonne Pays absente. Carte indisponible.")
     else:
-        counts = safe_series(df_filtered, pays_col).dropna().value_counts().reset_index()
-        counts.columns = ["Pays", "Nb_lignes"]
-
-        use_iso = ("Code_Pays" in df_filtered.columns) and df_filtered["Code_Pays"].astype(str).str.len().dropna().isin([3]).any()
-
-        if use_iso:
-            iso_counts = df_filtered.dropna(subset=["Code_Pays"]).groupby("Code_Pays").size().reset_index(name="Nb_lignes")
-            fig_map = px.choropleth(
-                iso_counts,
-                locations="Code_Pays",
-                color="Nb_lignes",
-                hover_name="Code_Pays",
-                color_continuous_scale=px.colors.sequential.Blues,
-            )
-            fig_map.update_layout(
-                geo=dict(showframe=False, showcoastlines=True),
-                margin=dict(l=0, r=0, t=0, b=0)
-            )
-            st.plotly_chart(fig_map, use_container_width=True)
-            st.caption("Carte basée sur Code_Pays (si ISO-3).")
+        s_pays = safe_series(df_filtered, pays_col)
+        if s_pays is None:
+            st.info("Aucune donnée pays à afficher.")
         else:
-            st.info(
-                "Je n'ai pas détecté de codes ISO-3 fiables. "
-                "J'affiche plutôt un TOP pays (bar chart). "
-                "Si tu ajoutes une colonne ISO-3 (ex: FRA/USA/DEU), la choroplèthe s’activera."
-            )
-            top = counts.head(30)
-            fig_bar = px.bar(top, x="Nb_lignes", y="Pays", orientation="h")
-            fig_bar.update_layout(yaxis=dict(categoryorder="total ascending"))
-            st.plotly_chart(fig_bar, use_container_width=True)
+            counts = s_pays.dropna().value_counts().reset_index()
+            counts.columns = ["Pays", "Nb_lignes"]
+
+            use_iso = ("Code_Pays" in df_filtered.columns) and df_filtered["Code_Pays"].astype(str).str.len().dropna().isin([3]).any()
+
+            if use_iso:
+                iso_counts = df_filtered.dropna(subset=["Code_Pays"]).groupby("Code_Pays").size().reset_index(name="Nb_lignes")
+                fig_map = px.choropleth(
+                    iso_counts,
+                    locations="Code_Pays",
+                    color="Nb_lignes",
+                    hover_name="Code_Pays",
+                    color_continuous_scale=px.colors.sequential.Blues,
+                )
+                fig_map.update_layout(
+                    geo=dict(showframe=False, showcoastlines=True),
+                    margin=dict(l=0, r=0, t=0, b=0)
+                )
+                st.plotly_chart(fig_map, use_container_width=True)
+                st.caption("Carte basée sur Code_Pays (si ISO-3).")
+            else:
+                st.info(
+                    "Je n'ai pas détecté de codes ISO-3 fiables. "
+                    "J'affiche plutôt un TOP pays (bar chart). "
+                    "Si tu ajoutes une colonne ISO-3 (ex: FRA/USA/DEU), la choroplèthe s’activera."
+                )
+                top = counts.head(30)
+                fig_bar = px.bar(top, x="Nb_lignes", y="Pays", orientation="h")
+                fig_bar.update_layout(yaxis=dict(categoryorder="total ascending"))
+                st.plotly_chart(fig_bar, use_container_width=True)
 
 # -------------------
 # Onglet 4 : Contact
