@@ -14,6 +14,8 @@ st.set_page_config(page_title="Copublications Inria", layout="wide")
 # -------------------
 theme = st.get_option("theme.base")  # 'light' ou 'dark'
 is_dark = theme == "dark"
+
+
 def safe_series(df: pd.DataFrame, col: str) -> pd.Series | None:
     """
     Retourne une Series df[col] même si:
@@ -28,6 +30,28 @@ def safe_series(df: pd.DataFrame, col: str) -> pd.Series | None:
         # colonne dupliquée -> on prend la première
         x = x.iloc[:, 0]
     return x
+
+
+def as_int(x, default=0) -> int:
+    """
+    Convertit proprement en int même si x est Series/DataFrame/NaN.
+    Utile pour éviter: TypeError: cannot convert the series to int
+    """
+    try:
+        if x is None:
+            return default
+        if isinstance(x, pd.Series):
+            # KPI -> on somme (ou tu peux faire .iloc[0] selon ton besoin)
+            x = x.sum()
+        if isinstance(x, pd.DataFrame):
+            x = x.to_numpy().sum()
+        if pd.isna(x):
+            return default
+        return int(x)
+    except Exception:
+        return default
+
+
 # -------------------
 # Load data
 # -------------------
@@ -38,8 +62,10 @@ def load_data(filepath: str) -> pd.DataFrame:
     # nettoyage de noms de colonnes
     df.columns = [str(c).strip().replace("\xa0", "").replace(" ", "_") for c in df.columns]
 
+    # ✅ IMPORTANT: supprimer les colonnes en doublon (sinon df[col] peut être un DataFrame)
+    df = df.loc[:, ~df.columns.duplicated()]
+
     # Harmonisation vers des colonnes "dashboard" stables
-    # (on renomme seulement si la source existe)
     mapping = {
         # Identifiants / année
         "Hal_ID": "HalID",
@@ -144,7 +170,10 @@ with st.sidebar:
     st.markdown("<br>", unsafe_allow_html=True)
 
     # clés session_state
-    for key in ["centres", "pays", "organismes", "annees", "equipes", "type_copub", "fonctions_inria", "fonctions_coauteur"]:
+    for key in [
+        "centres", "pays", "organismes", "annees", "equipes",
+        "type_copub", "fonctions_inria", "fonctions_coauteur"
+    ]:
         if key not in st.session_state:
             st.session_state[key] = []
 
@@ -152,93 +181,103 @@ with st.sidebar:
 
     # 1) Centres (tous)
     if centre_col:
-        centres_opts = sorted(tmp[centre_col].dropna().unique())
+        s_centre = safe_series(tmp, centre_col)
+        centres_opts = sorted(s_centre.dropna().astype(str).unique()) if s_centre is not None else []
         st.session_state.centres = st.multiselect(
             "Centre",
             centres_opts,
             default=[x for x in st.session_state.centres if x in centres_opts]
         )
-        if st.session_state.centres:
-            tmp = tmp[tmp[centre_col].isin(st.session_state.centres)]
+        if st.session_state.centres and s_centre is not None:
+            tmp = tmp[safe_series(tmp, centre_col).isin(st.session_state.centres)]
 
     # 2) Pays
     if pays_col:
-        pays_opts = sorted(tmp[pays_col].dropna().unique())
+        s_pays = safe_series(tmp, pays_col)
+        pays_opts = sorted(s_pays.dropna().astype(str).unique()) if s_pays is not None else []
         st.session_state.pays = st.multiselect(
             "Pays",
             pays_opts,
             default=[x for x in st.session_state.pays if x in pays_opts]
         )
-        if st.session_state.pays:
-            tmp = tmp[tmp[pays_col].isin(st.session_state.pays)]
+        if st.session_state.pays and s_pays is not None:
+            tmp = tmp[safe_series(tmp, pays_col).isin(st.session_state.pays)]
 
     # 3) Organismes copubliants
-    
     if org_col:
         s_org = safe_series(tmp, org_col)
-        if s_org is not None:
-            orgs_opts = sorted(s_org.dropna().astype(str).unique())
-            st.session_state.organismes = st.multiselect(
-                "Organismes copubliants",
-                orgs_opts,
-                default=[x for x in st.session_state.organismes if x in orgs_opts]
-            )
-            if st.session_state.organismes:
-                tmp = tmp[safe_series(tmp, org_col).isin(st.session_state.organismes)]
+        orgs_opts = sorted(s_org.dropna().astype(str).unique()) if s_org is not None else []
+        st.session_state.organismes = st.multiselect(
+            "Organismes copubliants",
+            orgs_opts,
+            default=[x for x in st.session_state.organismes if x in orgs_opts]
+        )
+        if st.session_state.organismes and s_org is not None:
+            tmp = tmp[safe_series(tmp, org_col).isin(st.session_state.organismes)]
+
     # 4) Années
     if annee_col:
-        annees_opts = sorted([int(x) for x in tmp[annee_col].dropna().unique() if pd.notna(x)])
+        s_annee = safe_series(tmp, annee_col)
+        if s_annee is not None:
+            annees_vals = pd.to_numeric(s_annee, errors="coerce").dropna()
+            annees_opts = sorted([int(x) for x in annees_vals.unique()])
+        else:
+            annees_opts = []
         st.session_state.annees = st.multiselect(
             "Années",
             annees_opts,
             default=[x for x in st.session_state.annees if x in annees_opts]
         )
-        if st.session_state.annees:
-            tmp = tmp[tmp[annee_col].isin(st.session_state.annees)]
+        if st.session_state.annees and s_annee is not None:
+            tmp = tmp[safe_series(tmp, annee_col).isin(st.session_state.annees)]
 
     # 5) Équipes
     if equipe_col:
-        equipes_opts = sorted(tmp[equipe_col].dropna().unique())
+        s_eq = safe_series(tmp, equipe_col)
+        equipes_opts = sorted(s_eq.dropna().astype(str).unique()) if s_eq is not None else []
         st.session_state.equipes = st.multiselect(
             "Équipes",
             equipes_opts,
             default=[x for x in st.session_state.equipes if x in equipes_opts]
         )
-        if st.session_state.equipes:
-            tmp = tmp[tmp[equipe_col].isin(st.session_state.equipes)]
+        if st.session_state.equipes and s_eq is not None:
+            tmp = tmp[safe_series(tmp, equipe_col).isin(st.session_state.equipes)]
 
     # 6) Type copublication (si dispo)
     if type_copub_col:
-        type_opts = sorted(tmp[type_copub_col].dropna().unique())
+        s_tc = safe_series(tmp, type_copub_col)
+        type_opts = sorted(s_tc.dropna().astype(str).unique()) if s_tc is not None else []
         st.session_state.type_copub = st.multiselect(
             "Type de copublication",
             type_opts,
             default=[x for x in st.session_state.type_copub if x in type_opts]
         )
-        if st.session_state.type_copub:
-            tmp = tmp[tmp[type_copub_col].isin(st.session_state.type_copub)]
+        if st.session_state.type_copub and s_tc is not None:
+            tmp = tmp[safe_series(tmp, type_copub_col).isin(st.session_state.type_copub)]
 
     # 7) Fonction auteur Inria (si dispo)
     if func_inria_col:
-        finria_opts = sorted(tmp[func_inria_col].dropna().unique())
+        s_fi = safe_series(tmp, func_inria_col)
+        finria_opts = sorted(s_fi.dropna().astype(str).unique()) if s_fi is not None else []
         st.session_state.fonctions_inria = st.multiselect(
             "Fonction auteur Inria",
             finria_opts,
             default=[x for x in st.session_state.fonctions_inria if x in finria_opts]
         )
-        if st.session_state.fonctions_inria:
-            tmp = tmp[tmp[func_inria_col].isin(st.session_state.fonctions_inria)]
+        if st.session_state.fonctions_inria and s_fi is not None:
+            tmp = tmp[safe_series(tmp, func_inria_col).isin(st.session_state.fonctions_inria)]
 
     # 8) Fonction co-auteur (si dispo)
     if func_coauteur_col:
-        fco_opts = sorted(tmp[func_coauteur_col].dropna().unique())
+        s_fc = safe_series(tmp, func_coauteur_col)
+        fco_opts = sorted(s_fc.dropna().astype(str).unique()) if s_fc is not None else []
         st.session_state.fonctions_coauteur = st.multiselect(
             "Fonction co-auteur",
             fco_opts,
             default=[x for x in st.session_state.fonctions_coauteur if x in fco_opts]
         )
-        if st.session_state.fonctions_coauteur:
-            tmp = tmp[tmp[func_coauteur_col].isin(st.session_state.fonctions_coauteur)]
+        if st.session_state.fonctions_coauteur and s_fc is not None:
+            tmp = tmp[safe_series(tmp, func_coauteur_col).isin(st.session_state.fonctions_coauteur)]
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.caption(
@@ -253,28 +292,28 @@ def get_filtered_df() -> pd.DataFrame:
     tmp2 = df.copy()
 
     if centre_col and st.session_state.centres:
-        tmp2 = tmp2[tmp2[centre_col].isin(st.session_state.centres)]
+        tmp2 = tmp2[safe_series(tmp2, centre_col).isin(st.session_state.centres)]
 
     if pays_col and st.session_state.pays:
-        tmp2 = tmp2[tmp2[pays_col].isin(st.session_state.pays)]
+        tmp2 = tmp2[safe_series(tmp2, pays_col).isin(st.session_state.pays)]
 
     if org_col and st.session_state.organismes:
-        tmp2 = tmp2[tmp2[org_col].isin(st.session_state.organismes)]
+        tmp2 = tmp2[safe_series(tmp2, org_col).isin(st.session_state.organismes)]
 
     if annee_col and st.session_state.annees:
-        tmp2 = tmp2[tmp2[annee_col].isin(st.session_state.annees)]
+        tmp2 = tmp2[safe_series(tmp2, annee_col).isin(st.session_state.annees)]
 
     if equipe_col and st.session_state.equipes:
-        tmp2 = tmp2[tmp2[equipe_col].isin(st.session_state.equipes)]
+        tmp2 = tmp2[safe_series(tmp2, equipe_col).isin(st.session_state.equipes)]
 
     if type_copub_col and st.session_state.type_copub:
-        tmp2 = tmp2[tmp2[type_copub_col].isin(st.session_state.type_copub)]
+        tmp2 = tmp2[safe_series(tmp2, type_copub_col).isin(st.session_state.type_copub)]
 
     if func_inria_col and st.session_state.fonctions_inria:
-        tmp2 = tmp2[tmp2[func_inria_col].isin(st.session_state.fonctions_inria)]
+        tmp2 = tmp2[safe_series(tmp2, func_inria_col).isin(st.session_state.fonctions_inria)]
 
     if func_coauteur_col and st.session_state.fonctions_coauteur:
-        tmp2 = tmp2[tmp2[func_coauteur_col].isin(st.session_state.fonctions_coauteur)]
+        tmp2 = tmp2[safe_series(tmp2, func_coauteur_col).isin(st.session_state.fonctions_coauteur)]
 
     return tmp2
 
@@ -292,11 +331,16 @@ def compute_yearly(df_in: pd.DataFrame) -> pd.DataFrame:
     out.columns = [annee_col, "Publications"]
     return out.sort_values(annee_col)
 
+
 @st.cache_data(ttl=300)
 def compute_top(df_in: pd.DataFrame, col: str, n=10) -> pd.Series:
     if col is None or col not in df_in.columns:
         return pd.Series(dtype=int)
-    return df_in[col].value_counts().nlargest(n)
+    s = safe_series(df_in, col)
+    if s is None:
+        return pd.Series(dtype=int)
+    return s.value_counts().nlargest(n)
+
 
 @st.cache_data(ttl=300)
 def build_graph_centres_pays(df_in: pd.DataFrame, max_edges=2000):
@@ -309,9 +353,7 @@ def build_graph_centres_pays(df_in: pd.DataFrame, max_edges=2000):
     G = nx.Graph()
     sub = df_in.dropna(subset=[centre_col, pays_col]).head(max_edges)
 
-    # poids = nombre de lignes (ou publications) par couple
     weights = sub.groupby([centre_col, pays_col]).size().reset_index(name="w")
-
     for _, r in weights.iterrows():
         c = r[centre_col]
         p = r[pays_col]
@@ -332,7 +374,9 @@ st.title("Copublications d'auteurs Inria")
 # -------------------
 # Tabs
 # -------------------
-tab1, tab2, tab3, tab4 = st.tabs(["Visualisation générale", "Réseau Centre ↔ Pays", "Carte du monde (Pays)", "Contact"])
+tab1, tab2, tab3, tab4 = st.tabs(
+    ["Visualisation générale", "Réseau Centre ↔ Pays", "Carte du monde (Pays)", "Contact"]
+)
 
 # -------------------
 # Onglet 1 : Dashboard
@@ -341,13 +385,14 @@ with tab1:
     st.subheader("Indicateurs clés")
 
     pubs_year = compute_yearly(df_filtered)
-    total_pubs = int(pubs_year["Publications"].sum()) if not pubs_year.empty else 0
+    total_pubs = as_int(pubs_year["Publications"].sum()) if not pubs_year.empty else 0
 
-    total_centres = df_filtered[centre_col].nunique() if centre_col else 0
-    total_pays = df_filtered[pays_col].nunique() if pays_col else 0
-    total_orgs = df_filtered[org_col].nunique() if org_col else 0
-    total_auteurs_inria = df_filtered[auteurs_inria_col].nunique() if auteurs_inria_col else 0
-    total_coauteurs = df_filtered[coauteurs_col].nunique() if coauteurs_col else 0
+    # ✅ utiliser safe_series + as_int pour éviter Series -> int()
+    total_centres = as_int(safe_series(df_filtered, centre_col).nunique()) if centre_col else 0
+    total_pays = as_int(safe_series(df_filtered, pays_col).nunique()) if pays_col else 0
+    total_orgs = as_int(safe_series(df_filtered, org_col).nunique()) if org_col else 0
+    total_auteurs_inria = as_int(safe_series(df_filtered, auteurs_inria_col).nunique()) if auteurs_inria_col else 0
+    total_coauteurs = as_int(safe_series(df_filtered, coauteurs_col).nunique()) if coauteurs_col else 0
 
     kpi_data = [
         ("Publications", total_pubs),
@@ -360,10 +405,9 @@ with tab1:
 
     cols = st.columns(len(kpi_data))
     for col, (label, value) in zip(cols, kpi_data):
-        col.metric(label, int(value))
+        col.metric(label, as_int(value))
 
     st.markdown("---")
-
     st.subheader("Publications par années")
 
     if pubs_year.empty:
@@ -392,7 +436,6 @@ with tab1:
             bargap=0.25,
         )
 
-        # coins arrondis si plotly >= 5.20
         try:
             fig_year.update_traces(marker=dict(cornerradius=8))
         except Exception:
@@ -462,15 +505,12 @@ with tab2:
             if G is None or len(G.nodes) == 0:
                 st.info("Pas assez de données pour construire le réseau.")
             else:
-                # Arêtes
                 edge_x, edge_y = [], []
-                edge_w = []
-                for u, v, data in G.edges(data=True):
+                for u, v in G.edges():
                     x0, y0 = pos[u]
                     x1, y1 = pos[v]
                     edge_x += [x0, x1, None]
                     edge_y += [y0, y1, None]
-                    edge_w.append(data.get("weight", 1))
 
                 edge_trace = go.Scatter(
                     x=edge_x, y=edge_y,
@@ -480,7 +520,6 @@ with tab2:
                     showlegend=False
                 )
 
-                # Nœuds
                 node_x, node_y, node_text, node_size, node_labels = [], [], [], [], []
                 node_color = []
                 for node in G.nodes():
@@ -490,11 +529,8 @@ with tab2:
                     ntype = G.nodes[node].get("node_type", "Other")
                     deg = G.degree(node)
                     node_size.append(10 + deg * 2)
-
                     node_text.append(f"{node} ({ntype}) - connexions: {deg}")
-                    node_labels.append(node if ntype == "Centre" else "")  # labels uniquement pour centres
-
-                    # couleurs simples selon type
+                    node_labels.append(node if ntype == "Centre" else "")
                     node_color.append("#0484fc" if ntype == "Centre" else "#faa48a")
 
                 node_trace = go.Scatter(
@@ -521,7 +557,7 @@ with tab2:
                 st.plotly_chart(fig_net, use_container_width=True)
 
 # ----------------------
-# Onglet 3 : Carte du monde (Pays) - Choropleth
+# Onglet 3 : Carte du monde (Pays)
 # ----------------------
 with tab3:
     st.header("Carte du monde (par pays)")
@@ -529,15 +565,9 @@ with tab3:
     if pays_col is None:
         st.warning("Colonne Pays absente. Carte indisponible.")
     else:
-        counts = df_filtered[pays_col].dropna().value_counts().reset_index()
+        counts = safe_series(df_filtered, pays_col).dropna().value_counts().reset_index()
         counts.columns = ["Pays", "Nb_lignes"]
 
-        # IMPORTANT : Plotly choropleth marche mieux avec codes ISO-3.
-        # Si ton fichier contient des noms de pays en français, Plotly peut parfois échouer.
-        # Dans ce cas, il est préférable d'avoir une colonne ISO-3 (ex: FRA, USA, DEU).
-        #
-        # Ici on tente:
-        # - si Code_Pays existe et ressemble à ISO-3, on l'utilise
         use_iso = ("Code_Pays" in df_filtered.columns) and df_filtered["Code_Pays"].astype(str).str.len().dropna().isin([3]).any()
 
         if use_iso:
@@ -574,7 +604,7 @@ with tab4:
     st.markdown("""
     Le groupe **Datalake**, créé en 2022, travaille à rendre possible le croisement de données entre **HAL** et divers référentiels,
     de développer des outils et méthodes d’analyse et de prospection pour permettre à différents acteurs décisionnaires (**ADS, DPE, etc.**) ou scientifiques
-    de répondre à leurs préoccupations du moment.  
+    de répondre à leurs préoccupations du moment.
     Il est constitué de **6 membres** aux profils de data scientistes, développeurs et documentalistes experts.
     """)
     st.markdown("---")
