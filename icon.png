@@ -1,0 +1,122 @@
+# -----------------------------------------------------------
+# THEME GENERAL
+# -----------------------------------------------------------
+[theme]
+# Couleurs principales
+primaryColor = "#0484fc"
+backgroundColor = "#e4f5ff"
+secondaryBackgroundColor = "#c7ebff"
+textColor = "#0484fc"
+linkColor = "#0068c9"
+linkUnderline = true
+codeBackgroundColor = "#d5dae5"
+font = "sans-serif"
+headingFont = "sans-serif"
+headingFontSizes = ["2.75rem","2.25rem","1.75rem","1.5rem","1.25rem","1rem"]
+headingFontWeights = [700,600,600,600,600,600]
+codeFont = "monospace"
+codeFontSize = "0.875rem"
+baseRadius = "0.5rem"
+buttonRadius = "0.5rem"
+borderColor = "#0068c9"
+dataframeBorderColor = "#0068c9"
+dataframeHeaderBackgroundColor = "#c7ebff"
+showWidgetBorder = true
+
+# Palette de couleurs pour graphiques (10 couleurs)
+chartCategoricalColors = [
+    "#e4f5ff",
+    "#c7ebff",
+    "#a6dcff",
+    "#83c9ff",
+    "#60b4ff",
+    "#3d9df3",
+    "#1c83e1",
+    "#0068c9",
+    "#0054a3",
+    "#004280"
+]
+
+# -----------------------------------------------------------
+# SIDEBAR THEME
+# -----------------------------------------------------------
+[theme.sidebar]
+primaryColor = "#0484fc"
+backgroundColor = "#c7ebff"
+secondaryBackgroundColor = "#a6dcff"
+textColor = "#0484fc"
+linkColor = "#0068c9"
+linkUnderline = true
+codeBackgroundColor = "#d5dae5"
+font = "sans-serif"
+headingFont = "sans-serif"
+headingFontSizes = ["1.5rem","1.25rem","1.125rem","1rem","0.875rem","0.75rem"]
+headingFontWeights = [700,600,600,600,600,600]
+codeFont = "monospace"
+codeFontSize = "0.875rem"
+baseRadius = "0.5rem"
+buttonRadius = "0.5rem"
+borderColor = "#0068c9"
+dataframeBorderColor = "#0068c9"
+dataframeHeaderBackgroundColor = "#a6dcff"
+showWidgetBorder = true
+
+# -----------------------------------------------------------
+# DARK MODE (user can toggle in Streamlit UI)
+# -----------------------------------------------------------
+[theme.dark]
+primaryColor = "#83c9ff"
+backgroundColor = "#004280"
+secondaryBackgroundColor = "#0068c9"
+textColor = "#e4f5ff"
+linkColor = "#1c83e1"
+linkUnderline = true
+codeBackgroundColor = "#d5dae5"
+font = "sans-serif"
+headingFont = "sans-serif"
+headingFontSizes = ["2.75rem","2.25rem","1.75rem","1.5rem","1.25rem","1rem"]
+headingFontWeights = [700,600,600,600,600,600]
+codeFont = "monospace"
+codeFontSize = "0.875rem"
+baseRadius = "0.5rem"
+buttonRadius = "0.5rem"
+borderColor = "#1c83e1"
+dataframeBorderColor = "#1c83e1"
+dataframeHeaderBackgroundColor = "#0068c9"
+showWidgetBorder = true
+
+[theme.dark.sidebar]
+primaryColor = "#83c9ff"
+backgroundColor = "#0068c9"
+secondaryBackgroundColor = "#1c83e1"
+textColor = "#e4f5ff"
+linkColor = "#1c83e1"
+linkUnderline = true
+codeBackgroundColor = "#d5dae5"
+font = "sans-serif"
+headingFont = "sans-serif"
+headingFontSizes = ["1.5rem","1.25rem","1.125rem","1rem","0.875rem","0.75rem"]
+headingFontWeights = [700,600,600,600,600,600]
+codeFont = "monospace"
+codeFontSize = "0.875rem"
+baseRadius = "0.5rem"
+buttonRadius = "0.5rem"
+borderColor = "#1c83e1"
+dataframeBorderColor = "#1c83e1"
+dataframeHeaderBackgroundColor = "#004280"
+showWidgetBorder = true
+
+# Palette de couleurs pour graphiques dark mode
+[theme.dark.chartCategoricalColors]
+colors = [
+    "#004280",
+    "#0054a3",
+    "#0068c9",
+    "#1c83e1",
+    "#3d9df3",
+    "#60b4ff",
+    "#83c9ff",
+    "#a6dcff",
+    "#c7ebff",
+    "#e4f5ff"
+]
