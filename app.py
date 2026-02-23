@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 # Page config
 # -------------------
 st.set_page_config(page_title="Copublications IES Médiation scientifique", layout="wide")
+
 st.markdown(
     """
     <style>
@@ -30,21 +31,34 @@ st.markdown(
       }
 
       /* =========================
-         SIDEBAR: fond + arrondi + ombre
+         SIDEBAR: fond
          ========================= */
       section[data-testid="stSidebar"]{
         background: var(--dl-sidebar-bg);
         border-right: 1px solid var(--dl-border);
       }
 
-      /* Container interne sidebar (arrondi + ombre) */
+      /* ✅ IMPORTANT: ne pas casser le scroll
+         - On supprime overflow:hidden
+         - On n’utilise pas margin sur le wrapper principal
+      */
       section[data-testid="stSidebar"] > div{
-        margin: 14px;
+        height: 100%;
+        padding: 12px;
+        box-sizing: border-box;
+      }
+
+      /* ✅ Carte interne (arrondi + ombre) qui scrolle si nécessaire */
+      section[data-testid="stSidebar"] .stSidebarContent{
         border-radius: var(--dl-radius);
         box-shadow: var(--dl-shadow);
         background: linear-gradient(180deg, rgba(255,255,255,.65), rgba(255,255,255,.35));
         border: 1px solid rgba(255,255,255,.55);
-        overflow: hidden;
+        padding: 10px 10px 16px 10px;
+
+        /* ✅ clé pour voir tous les filtres */
+        overflow-y: auto;
+        max-height: calc(100vh - 24px);
       }
 
       /* Un peu d’air dans la sidebar */
@@ -95,7 +109,6 @@ st.markdown(
       /* =========================
          INPUTS (selectbox/multiselect/slider)
          ========================= */
-      /* Cadres des widgets */
       section[data-testid="stSidebar"] div[data-baseweb="select"] > div,
       section[data-testid="stSidebar"] div[data-baseweb="input"] > div,
       section[data-testid="stSidebar"] div[data-baseweb="textarea"] > div{
@@ -105,13 +118,11 @@ st.markdown(
         box-shadow: 0 8px 18px rgba(4,132,252,.10);
       }
 
-      /* Labels */
       section[data-testid="stSidebar"] label{
         font-weight: 650 !important;
         color: var(--dl-text) !important;
       }
 
-      /* Chips multiselect */
       section[data-testid="stSidebar"] span[data-baseweb="tag"]{
         background: rgba(4,132,252,.12) !important;
         border: 1px solid rgba(4,132,252,.18) !important;
@@ -119,7 +130,6 @@ st.markdown(
         border-radius: 999px !important;
       }
 
-      /* Slider (barre) */
       section[data-testid="stSidebar"] div[data-testid="stSlider"] [data-baseweb="slider"] > div{
         color: var(--dl-primary);
       }
@@ -148,6 +158,7 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
 # -------------------
 # Détection du thème actuel
 # -------------------
@@ -328,7 +339,6 @@ if missing_core:
 # -------------------
 with st.sidebar:
     try:
-        st.image("logo.png", use_container_width=True)
         st.image("datalake_image_IA.png", use_container_width=True)
         st.markdown(
     "<div style='height:8px'></div>",
